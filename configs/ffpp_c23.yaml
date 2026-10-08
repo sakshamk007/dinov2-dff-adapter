@@ -1,0 +1,27 @@
+seed: 42
+model_name: facebook/dinov2-with-registers-large
+image_size: 224
+num_forgery_types: 4
+adapter:
+  rank: 16
+  alpha: 32
+  num_experts: 6
+  num_heads: 4
+  top_k: 3
+train:
+  batch_size: 8                 # Kaggle T4/P100 safe; use 24 on a 24 GB GPU
+  epochs: 50
+  lr: 0.0002
+  weight_decay: 0.00001
+  num_workers: 2
+  amp: true
+  grad_accum_steps: 3           # effective batch size = 24
+  lambda_binary: 10.0
+  lambda_type: 2.0
+  warmup_epochs: 2
+  save_every: 1
+data:
+  train_manifest: /kaggle/working/manifests/ffpp_train.jsonl
+  val_manifest: /kaggle/working/manifests/ffpp_val.jsonl
+  test_manifest: /kaggle/working/manifests/ffpp_test.jsonl
+output_dir: /kaggle/working/dff_adapter_runs/ffpp_c23
