@@ -1,8 +1,3 @@
-# author: Zhiyuan Yan
-# email: zhiyuanyan@link.cuhk.edu.cn
-# date: 2023-03-29
-# description: Data pre-processing script for deepfake dataset.
-
 
 """
 After running this code, it will generates a json file looks like the below structure for re-arrange data.
