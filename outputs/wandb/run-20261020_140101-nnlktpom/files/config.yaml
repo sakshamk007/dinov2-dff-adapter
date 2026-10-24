@@ -1,0 +1,143 @@
+_wandb:
+    value:
+        cli_version: 0.31.0
+        e:
+            01a1586f-7465-711c-8f4d-4e0c982a5b46:
+                args:
+                    - train
+                    - --root
+                    - ./FaceForensics
+                    - --out
+                    - ./outputs
+                    - --wandb
+                    - --wandb_project
+                    - dff-adapter
+                    - --wandb_name
+                    - dinov2-registers-large
+                codePath: model.py
+                codePathLocal: model.py
+                cpu:
+                    model: 12th Gen Intel(R) Core(TM) i7-12700
+                cpu_count: 12
+                cpu_count_logical: 20
+                cudaVersion: "13.2"
+                disk:
+                    /:
+                        total: "1005867986944"
+                        used: "83007680512"
+                email: sakshamkohli1000@gmail.com
+                executable: /home/newuser/Documents/datasets/ff++/dff/bin/python
+                gpu: NVIDIA GeForce RTX 3060
+                gpu_count: 1
+                gpu_nvidia:
+                    - architecture: Ampere
+                      cudaCores: 3584
+                      memoryTotal: "12884901888"
+                      name: NVIDIA GeForce RTX 3060
+                      pciBusId: "00000000:01:00.0"
+                      uuid: GPU-a39f8106-4baf-22c2-8309-2e747c135018
+                host: cse-iit-bhilai-HP-Elite-Tower-800-G9-Desktop-PC
+                memory:
+                    total: "15879639040"
+                os: Linux-7.0.0-38-generic-x86_64-with-glibc2.43
+                program: /home/newuser/Documents/datasets/ff++/model.py
+                python: CPython 3.14.4
+                root: /home/newuser/Documents/datasets/ff++/outputs
+                startedAt: "2026-10-20T08:31:01.726255Z"
+                writerId: 01a1586f-7465-711c-8f4d-4e0c982a5b46
+        m:
+            - "1": global_step
+              "6":
+                - 3
+              "7": []
+            - "2": train/*
+              "5": 1
+              "6":
+                - 1
+              "7": []
+            - "2": val/*
+              "5": 1
+              "6":
+                - 1
+              "7": []
+            - "2": sys/*
+              "5": 1
+              "6":
+                - 1
+              "7": []
+            - "2": time/*
+              "5": 1
+              "6":
+                - 1
+              "7": []
+        python_version: 3.14.4
+        t:
+            "1":
+                - 1
+                - 5
+                - 11
+                - 41
+                - 49
+                - 53
+            "2":
+                - 1
+                - 5
+                - 11
+                - 41
+                - 49
+                - 53
+            "3":
+                - 2
+                - 7
+                - 13
+                - 16
+                - 62
+            "4": 3.14.4
+            "5": 0.31.0
+            "6": 5.20.2
+            "12": 0.31.0
+            "13": linux-x86_64
+anchor:
+    value: FaceForensics++
+bs:
+    value: 24
+ckpt:
+    value: null
+data:
+    value: ffpp
+epochs:
+    value: 50
+frames_eval:
+    value: 16
+frames_train:
+    value: 8
+json:
+    value: null
+lam0:
+    value: 10
+lam1:
+    value: 2
+log_every:
+    value: 20
+lr:
+    value: 0.0002
+mode:
+    value: train
+model:
+    value: facebook/dinov2-with-registers-large
+out:
+    value: /home/newuser/Documents/datasets/ff++/outputs
+root:
+    value: /home/newuser/Documents/datasets/ff++/FaceForensics
+split:
+    value: test
+wandb:
+    value: true
+wandb_name:
+    value: dinov2-registers-large
+wandb_project:
+    value: dff-adapter
+wd:
+    value: 1e-05
+workers:
+    value: 4

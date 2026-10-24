@@ -1,0 +1,52 @@
+{
+  "os":  "Linux-7.0.0-38-generic-x86_64-with-glibc2.43",
+  "python":  "CPython 3.14.4",
+  "startedAt":  "2026-10-20T08:31:01.726255Z",
+  "args":  [
+    "train",
+    "--root",
+    "./FaceForensics",
+    "--out",
+    "./outputs",
+    "--wandb",
+    "--wandb_project",
+    "dff-adapter",
+    "--wandb_name",
+    "dinov2-registers-large"
+  ],
+  "program":  "/home/newuser/Documents/datasets/ff++/model.py",
+  "codePath":  "model.py",
+  "codePathLocal":  "model.py",
+  "email":  "sakshamkohli1000@gmail.com",
+  "root":  "/home/newuser/Documents/datasets/ff++/outputs",
+  "host":  "cse-iit-bhilai-HP-Elite-Tower-800-G9-Desktop-PC",
+  "executable":  "/home/newuser/Documents/datasets/ff++/dff/bin/python",
+  "cpu_count":  12,
+  "cpu_count_logical":  20,
+  "gpu":  "NVIDIA GeForce RTX 3060",
+  "gpu_count":  1,
+  "disk":  {
+    "/":  {
+      "total":  "1005867986944",
+      "used":  "83007680512"
+    }
+  },
+  "memory":  {
+    "total":  "15879639040"
+  },
+  "cpu":  {
+    "model":  "12th Gen Intel(R) Core(TM) i7-12700"
+  },
+  "gpu_nvidia":  [
+    {
+      "name":  "NVIDIA GeForce RTX 3060",
+      "memoryTotal":  "12884901888",
+      "cudaCores":  3584,
+      "architecture":  "Ampere",
+      "uuid":  "GPU-a39f8106-4baf-22c2-8309-2e747c135018",
+      "pciBusId":  "00000000:01:00.0"
+    }
+  ],
+  "cudaVersion":  "13.2",
+  "writerId":  "01a1586f-7465-711c-8f4d-4e0c982a5b46"
+}
