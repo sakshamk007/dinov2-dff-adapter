@@ -37,7 +37,7 @@ def download_file(url, output_dir, filename=None):
         subprocess.run(command, check=True)
 
         print("-" * 60)
-        print("Download completed successfully.")
+        print("download completed successfully.")
 
         if output_path and output_path.exists():
             print(f"Saved file: {output_path}")
@@ -46,7 +46,7 @@ def download_file(url, output_dir, filename=None):
             print(f"Files downloaded to: {output_dir}")
 
     except subprocess.CalledProcessError as exc:
-        print(f"Download failed with exit code {exc.returncode}.")
+        print(f"download failed with exit code {exc.returncode}.")
         print("Check the Google Drive link, permissions, and available disk space.")
         sys.exit(exc.returncode)
 
