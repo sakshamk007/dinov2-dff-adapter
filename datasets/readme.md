@@ -1,195 +1,167 @@
-# Deepfake Detection Using Fine-Grained DINOv2 Tuning
+# Data Preparation for DFF-Adapter (FaceForensics++ and Cross-Dataset Benchmarks)
 
+This folder documents and contains the scripts we used to turn raw FaceForensics++
+(FF++) videos, and the unseen cross-dataset benchmarks, into the aligned face crops
+and metadata that the model in `model.py` reads. It follows the dataset preparation
+and evaluation protocol of [DeepfakeBench](https://github.com/SCLBD/DeepfakeBench),
+which is the protocol used by the base paper
+(*Fine-Grained DINO Tuning with Dual Supervision for Face Forgery Detection*,
+arXiv:2511.12107).
 
-## 1. Project Overview
+**Owner of this part of the project:** Rohan Sen (M26DS010): data preprocessing and
+the FF++ and cross-dataset evaluation pipelines.
 
-This project focuses on deepfake detection using a vision-transformer-based approach inspired by the research paper *Fine-Grained DINO Tuning*. The implementation follows the dataset preparation and evaluation practices of [DeepfakeBench](https://github.com/SCLBD/DeepfakeBench).
+## 1. Pipeline at a glance
 
-The primary dataset is **FaceForensics++ (FF++) with C23 compression**. Raw videos are obtained through the official FaceForensics dataset access process and prepared using the dataset's extraction utilities and DeepfakeBench's preprocessing pipeline.
+```text
+FF++ c23 videos
+   -> (optional) frame extraction                  extract_compressed_videos.py
+   -> face detection, alignment, 256x256 crops     preprocess.py   (DeepfakeBench, dlib)
+   -> metadata JSON per dataset                    rearrange.py    (DeepfakeBench)
+   -> private Kaggle dataset                       shared by all three team members
+   -> frame loader on the official splits          FFppDataset / DFBenchDataset in ../model.py
+   -> model -> frame scores -> video-level AUC     evaluate() in ../model.py
+```
 
+## 2. Files in this folder
 
+| File | What it does | Origin |
+|---|---|---|
+| `faceforensics_download_v4.py` | Downloads FF++ videos after access is approved | Official FaceForensics script (the filename is missing its leading "F") |
+| `extract_compressed_videos.py` | Extracts every frame of every video to PNG | Official FaceForensics script |
+| `preprocess.py` | Detects, aligns and crops faces; saves frames, landmarks and masks | DeepfakeBench |
+| `rearrange.py` | Builds the JSON metadata (labels, frame lists, splits) | DeepfakeBench |
+| `../scripts/download_gdrive.py` | Downloads a large file from Google Drive with `gdown`; resumable | Ours |
 
-## 2. FaceForensics++ Dataset
+The scripts above come from the official repositories. Our work was obtaining dataset
+access, running and configuring them, checking the outputs, making the folder layout
+and paths consistent with the loader in `model.py`, and publishing the result as a
+private Kaggle dataset.
 
-FaceForensics++ is a benchmark dataset for facial manipulation detection. It includes original videos and manipulated videos generated using different methods.
+## 3. FaceForensics++ dataset
 
-The original dataset contains manipulation methods including:
+FF++ has 1,000 real YouTube videos and 4,000 forged videos made with four methods:
 
 * Deepfakes
 * Face2Face
 * FaceSwap
 * NeuralTextures
 
-Additional dataset components, such as FaceShifter and DeepFakeDetection, are available through the appropriate dataset access arrangements.
-
+FaceShifter and DeepFakeDetection are separate components that we do not use for
+training.
 
 ### Official dataset access
 
-FaceForensics++ is distributed through an access-request process. We have filled the acess form present in the official repository and obtained the download script after approval.
+FF++ is distributed through an access-request process. We filled in the access form in
+the official repository and received the download script after approval.
 
 * [Official FaceForensics++ repository](https://github.com/ondyari/FaceForensics)
 * [FaceForensics++ dataset access form](https://docs.google.com/forms/d/e/1FAIpQLSdRRR3L5zAv6tQ_CKxmK4W96tAab_pfBu2EKAgQbeDVhmXagg/viewform)
 
+We use the **c23** videos only (H.264 with constant rate factor 23, a medium-quality
+setting similar to online video), because the base paper trains on FF++ c23 only. The
+other levels are raw (c0) and c40 (heavy compression).
 
-The project uses the **C23 compressed videos** for its initial dataset preparation. C23 refers to the H.264 compression setting with a constant rate factor of 23.
+### Official splits: why we split by video pair
 
+FF++ ships official `train.json`, `val.json` and `test.json` files. Each lists **pairs**
+of video IDs `[a, b]`. A pair stands for:
 
-### Dataset organization
+* the real videos `a` and `b`, and
+* for each method, the fakes `a_b` and `b_a` (one person's face placed on the other's
+  video).
 
-The raw video dataset is organized using the directory conventions expected by DeepfakeBench.
+We split by pair (360 / 70 / 70 pairs for train / val / test), so the same person never
+appears in two splits. Splitting by frame, or even by single video, would let the model
+recognise people instead of forgeries and inflate the scores. The split files must sit
+in the `FaceForensics++/` root folder (next to `original_sequences/`); `rearrange.py`
+and `model.py` look for them there.
+
+### Folder layout
+
+Before preprocessing:
 
 ```text
 FaceForensics++/
+├── train.json  val.json  test.json
 ├── original_sequences/
-│   └── youtube/
-│       └── c23/
-│           └── videos/
+│   └── youtube/c23/videos/*.mp4
 └── manipulated_sequences/
-    ├── Deepfakes/
-    │   └── c23/
-    │       └── videos/
-    ├── Face2Face/
-    │   └── c23/
-    │       └── videos/
-    ├── FaceSwap/
-    │   └── c23/
-    │       └── videos/
-    ├── NeuralTextures/
-    │   └── c23/
-    │       └── videos/
-    └── FaceShifter/
-        └── c23/
-            └── videos/
+    ├── Deepfakes/c23/videos/
+    ├── Face2Face/c23/videos/
+    ├── FaceSwap/c23/videos/
+    └── NeuralTextures/c23/videos/
 ```
 
-The exact folders depend on which dataset components were downloaded. The directory structure should be checked before preprocessing.
+After preprocessing, `frames/`, `landmarks/` and (for the four fake methods) `masks/`
+appear next to each `videos/` folder:
 
+```text
+.../c23/
+├── videos/
+├── frames/<video-id>/<frame-number>.png     <- the only folder our model reads
+├── landmarks/<video-id>/<frame-number>.npy
+└── masks/<video-id>/<frame-number>.png      (fakes only, not used by our model)
+```
 
+## 4. Software requirements
 
-## 3. Software Requirements
-
-The workflow uses:
-
-* Ubuntu Linux
-* Python 3
-* OpenCV
-* NumPy
-* Pillow
-* `tqdm`
+* Ubuntu Linux, Python 3
+* OpenCV, NumPy, Pillow, `tqdm`, `scikit-image`, `imutils`, `pandas`, PyYAML
 * FFmpeg with H.264 support
-* Dlib and the facial-landmark predictor required by DeepfakeBench
-* PyYAML and other dependencies specified by the selected DeepfakeBench version
+* `dlib`, and the 81-point landmark file `shape_predictor_81_face_landmarks.dat` from
+  DeepfakeBench (`preprocess.py` expects it at `./dlib_tools/`)
 
-The original FaceForensics utilities document the use of OpenCV, FFmpeg, and `tqdm` for frame extraction. DeepfakeBench provides additional face preprocessing and dataset arrangement utilities.
+## 5. Setup
 
-
-
-## 4. Repository Setup
-
+Get DeepfakeBench and work inside its `preprocessing` folder, which holds
+`config.yaml`:
 
 ```bash
 cd ~/Desktop/DeepfakeBench-main
-```
-
-Inspect the repository:
-
-```bash
-ls
 ls preprocessing
-```
-
-Create and activate a virtual environment:
-
-```bash
 python3 -m venv venv
 source venv/bin/activate
 ```
 
+Copy the scripts from this folder into `preprocessing/` if you want to use our
+versions.
 
-
-## 5. Download Raw FF++ C23 Videos
-
-```bash
-python download-FaceForensics.py -h
-```
-
-The official FaceForensics documentation provides the following general command for downloading original and manipulated videos at C23 compression:
+## 6. Download the raw FF++ c23 videos
 
 ```bash
-python download-FaceForensics.py /path/to/output \
+python aceforensics_download_v4.py -h
+python aceforensics_download_v4.py /path/to/output \
   -d all \
   -c c23 \
   -t videos
 ```
 
-If supported by the supplied script, a server option can also be provided:
+* `-d` selects the dataset (`all`, `original`, `Deepfakes`, `Face2Face`, `FaceSwap`,
+  `NeuralTextures`, ...).
+* `-c` selects the compression level (`raw`, `c23`, `c40`).
+* `-t` selects the file type (`videos`, `masks`, `models`).
+* `--server EU`, `EU2` or `CA` selects the download server.
 
-```bash
-python download-FaceForensics.py /path/to/output \
-  -d all \
-  -c c23 \
-  -t videos \
-  --server EU2
-```
-
-Replace `/path/to/output` with the intended dataset location. The exact script filename and available options should be checked against the script supplied after access approval.
-
-The download selection should be restricted to the dataset components needed for the experiment. Check the output to ensure the required original and manipulated C23 videos are present.
+The exact options depend on the script supplied after access approval; run `-h` first.
 
 ### Verify the downloaded videos
 
-Set the dataset directory:
-
 ```bash
 DATASET="$HOME/Desktop/FaceForensics/ffpp_c23"
-```
-
-Inspect its contents:
-
-```bash
 find "$DATASET" -maxdepth 4 -type d | head -50
-```
-
-Count the downloaded MP4 files:
-
-```bash
 find "$DATASET" -type f -iname "*.mp4" | wc -l
+find "$DATASET/original_sequences" -type f -iname "*.mp4" | head
+find "$DATASET/manipulated_sequences" -type f -iname "*.mp4" | head
 ```
 
-Inspect a sample of original videos:
+These checks confirm the folder structure and the file count. They do not prove that
+every video downloaded completely or can be decoded.
 
-```bash
-find "$DATASET/original_sequences" \
-  -type f -iname "*.mp4" | head
-```
+## 7. Frame extraction (optional, for inspection)
 
-Inspect a sample of manipulated videos:
-
-```bash
-find "$DATASET/manipulated_sequences" \
-  -type f -iname "*.mp4" | head
-```
-
-These checks verify the directory structure and provide a file count. They do not by themselves establish that every video downloaded successfully or can be decoded.
-
-
-
-
-## 6. Frame Extraction
-
-Frame extraction converts video files into individual image files. The original FaceForensics repository supplies an extraction utility for this purpose.
-
-Official reference: [FaceForensics frame extraction utility](https://github.com/ondyari/FaceForensics/blob/master/dataset/extract_compressed_videos.py).
-
-### 6.1 Inspect the extraction utility
-
-Obtain the official utility from the FaceForensics repository, then inspect its options:
-
-```bash
-python extract_compressed_videos.py -h
-```
-
-The official script uses a dataset root, dataset selection, and compression setting. For example, the command pattern is:
+`extract_compressed_videos.py` reads every frame of each video with OpenCV and writes
+`0000.png`, `0001.png`, ... into an `images/` folder next to `videos/`:
 
 ```bash
 python extract_compressed_videos.py \
@@ -198,159 +170,101 @@ python extract_compressed_videos.py \
   --compression c23
 ```
 
-The original extraction utility supports the dataset categories and compression settings defined in its own source code. Check the available choices before running it on additional manipulation categories.
+Choices for `--dataset` are `original`, `Deepfakes`, `Face2Face`, `FaceSwap` and `all`
+(NeuralTextures is not in this script's list). **This `images/` output is not used by
+the model.** It is useful for looking at the raw data. The training frames come from the
+face-preprocessing step below.
 
-### 6.2 Extract frames from the selected videos
+## 8. Face detection, alignment and cropping (`preprocess.py`)
 
-For categories supported by the utility, the extracted images are written into image directories associated with the input video folders.
+A video frame shows a whole scene, but the detector only needs the face, and every face
+should sit in the same position. For each video, `preprocess.py`:
 
-The output structure is generally similar to:
+1. **Chooses frames.** Mode `fixed_num_frames` takes evenly spaced frames
+   (`np.linspace`); mode `fixed_stride` takes every n-th frame. Both are set in
+   `config.yaml`.
+2. **Detects faces** with dlib's frontal face detector and keeps only the **largest**
+   face in the frame.
+3. **Finds landmarks** with the 81-point model and keeps five: both eyes, the nose tip
+   and both mouth corners.
+4. **Aligns and crops.** A similarity transform (rotation, scale and shift, with no
+   distortion) maps the five points onto a standard face template, giving a
+   **256x256 crop with a 1.3x margin**.
+5. **Re-checks the crop.** It runs the detector again on the crop to get landmarks for
+   it. If no face is found, the frame is skipped.
+6. **Saves** `frames/<video>/<frame>.png`, `landmarks/.../*.npy` and, for fakes,
+   `masks/.../*.png`.
 
-```text
-FaceForensics++/
-├── original_sequences/
-│   └── youtube/
-│       └── c23/
-│           ├── videos/
-│           └── images/
-└── manipulated_sequences/
-    ├── Deepfakes/
-    │   └── c23/
-    │       ├── videos/
-    │       └── images/
-    └── Face2Face/
-        └── c23/
-            ├── videos/
-            └── images/
-```
-
-Each video's extracted frames are stored in a corresponding image subdirectory.
-
-The extraction utility is useful for producing frame images and inspecting the raw video data. The subsequent DeepfakeBench preprocessing stage performs the face-oriented processing needed by the detector.
+Videos run in parallel (one thread per CPU core), and progress and errors go to
+`logs/<dataset>.log`.
 
 
+Set these keys under `preprocess`:
 
-## 7. DeepfakeBench Face Preprocessing
+| Key | Value |
+|---|---|
+| `dataset_name` | `FaceForensics++` |
+| `dataset_root_path` | the folder that contains `FaceForensics++/` |
+| `comp` | `c23` |
+| `mode` | `fixed_num_frames` or `fixed_stride` |
+| `num_frames` / `stride` | the sampling values for your experiment |
 
-DeepfakeBench provides a preprocessing pipeline for face detection, alignment, cropping, and the generation of associated data such as facial landmarks and masks where supported.
-
-Official references:
-
-* [DeepfakeBench preprocessing script](https://github.com/SCLBD/DeepfakeBench/blob/main/preprocessing/preprocess.py)
-* [DeepfakeBench repository](https://github.com/SCLBD/DeepfakeBench)
-
-### 7.1 Configure the preprocessing pipeline
-
-Move into the preprocessing directory:
+### Run
 
 ```bash
-cd ~/Desktop/DeepfakeBench-main/preprocessing
-```
-
-Open the configuration:
-
-```bash
-nano config.yaml
-```
-
-Configure the dataset name, dataset root, compression level, and frame-sampling options according to the actual keys in the local configuration file.
-
-The essential settings should correspond to:
-
-* Dataset: FaceForensics++
-* Compression: C23
-* Dataset root: the directory containing the `FaceForensics++` folder
-* Sampling mode: the mode required by the experiment
-* Number of frames or sampling stride: the values selected for the experiment
-
-
-### 7.2 Run the official preprocessing script
-
-After confirming the raw video structure, dependencies, predictor files, and configuration, run:
-
-```bash
-cd ~/Desktop/DeepfakeBench-main/preprocessing
 python preprocess.py
 ```
 
-The script processes the dataset according to the configured paths and options. The exact outputs depend on the dataset and preprocessing configuration.
+**Folder check.** For FF++, `preprocess.py` lists these folders and **exits if any is
+missing**: `original_sequences/youtube`, `original_sequences/actors`,
+`manipulated_sequences/Deepfakes`, `Face2Face`, `FaceSwap`, `NeuralTextures`,
+`FaceShifter` and `DeepFakeDetection`. If you downloaded only the five components we
+use, delete the other names from the `sub_dataset_names` list in `preprocess.py`
+before running. Do the same for the `actors` and FaceShifter handling in
+`rearrange.py` (see below).
 
-The resulting data include:
-
-* Extracted video frames
-* Detected and cropped face images
-* Facial landmarks
-* Manipulation masks where supported
-
-A representative output layout is:
-
-```text
-FaceForensics++/
-├── original_sequences/
-│   └── youtube/
-│       └── c23/
-│           ├── videos/
-│           ├── frames/
-│           └── landmarks/
-└── manipulated_sequences/
-    └── Deepfakes/
-        └── c23/
-            ├── videos/
-            ├── frames/
-            ├── landmarks/
-            └── masks/
-```
-
-
-
-### 7.3 Verify generated outputs
-
-Inspect the generated frame directories:
+### Verify
 
 ```bash
-find ~/Desktop/DeepfakeBench-main/datasets/rgb/FaceForensics++ \
-  -type d -name frames
-```
-
-Count generated PNG files:
-
-```bash
+find ~/Desktop/DeepfakeBench-main/datasets/rgb/FaceForensics++ -type d -name frames
 find ~/Desktop/DeepfakeBench-main/datasets/rgb/FaceForensics++ \
   -type f -path "*/frames/*" -name "*.png" | wc -l
-```
-
-Inspect landmark and mask directories:
-
-```bash
 find ~/Desktop/DeepfakeBench-main/datasets/rgb/FaceForensics++ \
   -type d \( -name landmarks -o -name masks \)
 ```
 
+A few videos may end up with no crops when no face is detected in any sampled frame. In
+our training split, one real video and one fake video per method (except FaceSwap) were
+missing, which is 719 of 720 videos found, so the effect is negligible. The loader
+prints these counts.
 
+## 9. Metadata and splits (`rearrange.py`)
 
+`rearrange.py` scans the `frames/` folders and writes JSON metadata of this form:
 
-## 8. Dataset Metadata and Splits
+```text
+{ "<dataset>": { "<label>": { "<split>": { "<compression>": { "<video-id>": {
+      "label": "<label>", "frames": ["/path/to/frame1.png", ...] } } } } } }
+```
 
-DeepfakeBench provides a rearrangement script for organizing the processed dataset into the metadata format used by its data loaders.
+For FF++ it uses the official `train.json`, `val.json` and `test.json` to assign every
+video (`a`, `b`, `a_b`, `b_a`) to a split, and writes one JSON file per forgery method
+(for example `FF-DF.json`), each holding the real videos plus that method. Labels are
+`FF-real`, `FF-DF` (Deepfakes), `FF-F2F` (Face2Face), `FF-FS` (FaceSwap) and `FF-NT`
+(NeuralTextures). `model.py` uses the same names for the forgery-type labels.
 
-After preprocessing, inspect the rearrangement configuration in `preprocessing/config.yaml`. Confirm the dataset root, compression setting, and output directory.
-
-Run:
 
 ```bash
 cd ~/Desktop/DeepfakeBench-main/preprocessing
 python rearrange.py
-```
-
-The expected output includes JSON metadata describing dataset entries and the splits used by the selected workflow. The exact JSON filenames and fields depend on the configuration and repository version.
-
-Inspect the generated JSON files:
-
-```bash
 find dataset_json -maxdepth 2 -type f -name "*.json"
 ```
 
-Validate JSON syntax:
+`rearrange.py` also reads `original_sequences/actors` for the FF++ run. If you did not
+download it, remove that block (or create an empty `actors/c23/frames` folder) before
+running.
+
+Validate the JSON syntax:
 
 ```bash
 python - <<'PY'
@@ -359,71 +273,131 @@ from pathlib import Path
 
 root = Path("dataset_json")
 files = list(root.glob("*.json"))
-
 if not files:
-    raise SystemExit(
-        "No JSON files found. Check the configured output directory."
-    )
-
+    raise SystemExit("No JSON files found. Check the configured output directory.")
 for path in files:
     with path.open("r", encoding="utf-8") as file:
         json.load(file)
     print("Valid JSON:", path)
-
 print("JSON syntax validation completed.")
 PY
 ```
 
+**Note:** our FF++ training and evaluation (`FFppDataset` in `model.py`) reads the
+`frames/` folders and the `train/val/test.json` pair lists directly. The JSON files from
+`rearrange.py` are needed for the **cross-dataset** evaluation (Section 12).
 
+## 10. Private Kaggle dataset
 
-## 9. Private Kaggle Dataset and Notebook Workflow
+The prepared data is stored in a **private Kaggle dataset**, so all collaborators train
+from an identical copy without repeating the download and cropping. It must stay private
+because FF++ is shared under an access agreement.
 
-The prepared FaceForensics++ dataset is stored in a **private Kaggle dataset** for use in Kaggle notebooks during the later stages of the project.
+1. Organise the prepared folders (`frames/` and the split files; masks and landmarks are
+   optional).
+2. Check the package contents.
+3. Upload it as a private Kaggle dataset.
+4. Attach it to the notebook.
+5. Confirm that the images and split files are visible from the notebook.
 
-This allows the authorized project collaborators to access the prepared data from the notebook environment without needing to repeat the full download and preprocessing workflow each time.
+## 11. How the training loader reads the data
 
-The dataset transfer workflow includes:
+`FFppDataset` in `../model.py`:
 
-1. Organizing the prepared data and associated metadata.
-2. Verifying the contents of the dataset package.
-3. Uploading the prepared dataset to a private Kaggle dataset.
-4. Attaching the private dataset to the relevant Kaggle notebook.
-5. Confirming that the expected image files and metadata can be accessed from the notebook.
-6. Using the data for the subsequent model development and evaluation phases.
+* finds the folder that contains `original_sequences/` and `manipulated_sequences/`
+  (searching `/kaggle/input` if the given path is wrong);
+* finds `train.json`, `val.json` and `test.json` and reads the video pairs;
+* builds the video names (real: `a`, `b`; fakes: `a_b`, `b_a`) for each of the five
+  classes;
+* picks evenly spaced frames from each video's `frames/` folder.
 
+| Split | Pairs | Frames per video | Frames used |
+|---|---|---|---|
+| Train | 360 | 8 | 28,768 |
+| Val | 70 | 16 | 11,186 |
+| Test | 70 | 32 | 22,388 |
 
+The paper does not state its frame counts; these are our choices. Images are resized to
+224x224 and normalised with ImageNet statistics. Training also uses a random horizontal
+flip and colour jitter (0.1).
 
+**Check before training** (no GPU needed). It prints the number of videos and frames
+found per class and split, and verifies a random sample of 300 frames:
 
-## 10. FUTURE WORK (Phase 3): Cross-Dataset Evaluation
+```bash
+python ../model.py check --root /path/to/FaceForensics
+```
 
-The third phase of the project will investigate whether the trained detector generalizes beyond FaceForensics++.
+## 12. Cross-dataset evaluation
 
-The following datasets are planned for evaluation, subject to obtaining access and preparing the data in the required format.
+The detector is trained on FF++ c23 only and then tested, without retraining, on:
 
-### Celeb-DF v1
+* **Celeb-DF v1 and v2**: real celebrity videos and face-swap fakes.
+* **DFDCP**: the preview set of the Deepfake Detection Challenge.
+* **DFDC**: the full Deepfake Detection Challenge test set.
 
-Celeb-DF v1 is a deepfake dataset containing real celebrity videos and synthesized face-swapping videos. It provides an additional benchmark for evaluating cross-dataset generalization.
+These tests measure generalisation to faces, lighting, compression and forgery methods
+the model has never seen. Each dataset requires its own access and download.
 
-### Celeb-DF v2
+### Raw layouts expected by `preprocess.py`
 
-Celeb-DF v2 is an expanded version of Celeb-DF and provides a larger evaluation set for testing the detector on videos produced using a different dataset and manipulation pipeline.
+```text
+Celeb-DF-v1/ and Celeb-DF-v2/   Celeb-real/  Celeb-synthesis/  YouTube-real/  List_of_testing_videos.txt
+DFDCP/                          original_videos/  method_A/  method_B/  dataset.json
+DFDC/                           test/ (with labels.csv)  train/dfdc_train_part_0 ... 49
+```
 
-### Deepfake Detection Challenge Preview (DFDCP)
+### Steps for each dataset
 
-DFDCP is the preview dataset associated with the Deepfake Detection Challenge. It provides additional manipulated and authentic videos for assessing the robustness of a detector outside the main FF++ dataset.
+1. Run `python preprocess.py` to create the face crops.
+2. Run `python rearrange.py` to create `dataset_json/<dataset>.json`. The test split comes
+   from `List_of_testing_videos.txt` (Celeb-DF), `dataset.json` (DFDCP) or `labels.csv`
+   (DFDC).
+3. Evaluate the trained checkpoint:
 
-### Deepfake Detection Challenge (DFDC)
+```bash
+python ../model.py eval --data json \
+  --json /path/to/dataset_json/Celeb-DF-v2.json \
+  --root /path/to/datasets/Celeb-DF-v2 \
+  --anchor Celeb-DF-v2 \
+  --ckpt ../checkpoints/Epochs50/best.pt \
+  --split test --frames_eval 32
+```
 
-DFDC is a larger deepfake detection dataset containing real and manipulated videos. It can be used to investigate performance on a broader set of identities, recording conditions, and manipulation methods.
+How this works in `DFBenchDataset`:
 
-DeepfakeBench lists Celeb-DF v1, Celeb-DF v2, DFDCP, and DFDC among the supported dataset configurations. Each dataset requires the appropriate access, file organization, metadata, and preprocessing.
+* A video is **real** if its label contains "real" (for example `CelebDFv2_real`,
+  `DFDC_Real`), and fake otherwise.
+* The JSON stores absolute paths from the machine that created it. The loader keeps the
+  part of each path after `--anchor` and joins it to `--root`, so the data can be moved
+  to Kaggle or another machine. The default anchor is `FaceForensics++`, so for other
+  datasets set `--anchor` to a folder name that appears in the stored paths (for
+  example `Celeb-DF-v2`).
 
-Official reference: [DeepfakeBench README](https://github.com/SCLBD/DeepfakeBench).
+### Metric
 
+**Video-level AUC.** The model scores each frame (probability of fake), the scores are
+averaged per video, and ROC AUC is computed over videos, as in the paper and
+DeepfakeBench. Frame-level AUC is also printed. AUC measures how well fakes are ranked
+above reals (0.5 is random, 1.0 is perfect) and does not depend on a threshold.
 
+### Our results (ViT-L, trained on FF++ c23 for 50 epochs)
 
+| Test set | Paper | Ours |
+|---|---|---|
+| FF++ test | 99.56 | 99.62 |
+| Celeb-DF v2 | 95.26 | 90.11 |
+| DFDC | 89.96 | 83.09 |
+| Celeb-DF v1 | 96.14 | 88.20 |
+| DFDCP | 91.57 | 90.59 |
+| Cross-dataset average | 93.23 | 88.00 |
 
-## 11. References
+On twelve DF40 manipulation methods, we average 94.16 against the paper's 95.20. Our
+report discusses possible reasons for the cross-dataset gap (our design choices,
+checkpoint selection on FF++ validation AUC, and preprocessing or frame-sampling
+differences); these are hypotheses that still need ablations.
+
+## 13. References
 
 1. [FaceForensics++ official repository](https://github.com/ondyari/FaceForensics)
 2. [FaceForensics++ dataset documentation](https://github.com/ondyari/FaceForensics/blob/master/dataset/README.md)
@@ -431,15 +405,18 @@ Official reference: [DeepfakeBench README](https://github.com/SCLBD/DeepfakeBenc
 4. [DeepfakeBench repository](https://github.com/SCLBD/DeepfakeBench)
 5. [DeepfakeBench preprocessing script](https://github.com/SCLBD/DeepfakeBench/blob/main/preprocessing/preprocess.py)
 6. [DeepfakeBench preprocessing configuration](https://github.com/SCLBD/DeepfakeBench/blob/main/preprocessing/config.yaml)
-7. *Fine-Grained DINO Tuning* — the research paper used as the methodological reference.
+7. T. Zhang et al., *Fine-Grained DINO Tuning with Dual Supervision for Face Forgery
+   Detection*, arXiv:2511.12107, 2025.
 
+## 14. Dataset integrity and responsible use
 
+This repository documents the dataset preparation workflow and the code used to
+organise the data for research.
 
+FaceForensics++, Celeb-DF, DFDCP, DFDC and other datasets remain subject to their
+providers' access terms and usage restrictions. Dataset files are not included in this
+public repository, and our prepared copy is kept in a private Kaggle dataset.
 
-## 12. Dataset Integrity and Responsible Use
-
-This repository documents the dataset preparation workflow and the code used to organize the data for research.
-
-FaceForensics++, Celeb-DF, DFDCP, DFDC, and other datasets remain subject to their respective providers' access terms and usage restrictions. Dataset files are not included in the public source-code repository.
-
-For reproducibility, the project records the dataset version, compression setting, preprocessing configuration, frame-sampling method, metadata format, model input size, and evaluation protocol used in each experiment.
+For reproducibility, we record the dataset version, compression setting, preprocessing
+configuration, frame-sampling method, metadata format, model input size and evaluation
+protocol used in each experiment.
