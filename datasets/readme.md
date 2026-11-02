@@ -8,8 +8,6 @@ which is the protocol used by the base paper
 (*Fine-Grained DINO Tuning with Dual Supervision for Face Forgery Detection*,
 arXiv:2511.12107).
 
-**Owner of this part of the project:** Rohan Sen (M26DS010): data preprocessing and
-the FF++ and cross-dataset evaluation pipelines.
 
 ## 1. Pipeline at a glance
 
