@@ -8,8 +8,6 @@ which is the protocol used by the base paper
 (*Fine-Grained DINO Tuning with Dual Supervision for Face Forgery Detection*,
 arXiv:2511.12107).
 
-**Owner of this part of the project:** Rohan Sen (M26DS010): data preprocessing and
-the FF++ and cross-dataset evaluation pipelines.
 
 ## 1. Pipeline at a glance
 
@@ -25,15 +23,15 @@ FF++ c23 videos
 
 ## 2. Files in this folder
 
-| File | What it does | Origin |
-|---|---|---|
-| `faceforensics_download_v4.py` | Downloads FF++ videos after access is approved | Official FaceForensics script (the filename is missing its leading "F") |
-| `extract_compressed_videos.py` | Extracts every frame of every video to PNG | Official FaceForensics script |
-| `preprocess.py` | Detects, aligns and crops faces; saves frames, landmarks and masks | DeepfakeBench |
+| File | What it does | 
+|---|---|
+| `faceforensics_download_v4.py` | Downloads FF++ videos after access is approved |
+| `extract_compressed_videos.py` | Extracts every frame of every video to PNG |
+| `preprocess.py` | Detects, aligns and crops faces; saves frames, landmarks and masks | 
 | `rearrange.py` | Builds the JSON metadata (labels, frame lists, splits) | DeepfakeBench |
-| `../scripts/download_gdrive.py` | Downloads a large file from Google Drive with `gdown`; resumable | Ours |
+| `../scripts/download_gdrive.py` | Downloads a large file from Google Drive with `gdown`; resumable | 
 
-The scripts above come from the official repositories. Our work was obtaining dataset
+Our work was obtaining dataset
 access, running and configuring them, checking the outputs, making the folder layout
 and paths consistent with the loader in `model.py`, and publishing the result as a
 private Kaggle dataset.
@@ -114,8 +112,7 @@ appear next to each `videos/` folder:
 
 ## 5. Setup
 
-Get DeepfakeBench and work inside its `preprocessing` folder, which holds
-`config.yaml`:
+Get DeepfakeBench and work inside its `preprocessing` folder.
 
 ```bash
 cd ~/Desktop/DeepfakeBench-main
